@@ -1,60 +1,47 @@
-# Minecraft Java Paper Server + Geyser + Floodgate Docker Container
-# Author: James A. Chambers - https://jamesachambers.com/minecraft-java-bedrock-server-together-geyser-floodgate/
-# GitHub Repository: https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate
+# ObsidianReforged — Minecraft Java + Geyser + Floodgate + Paper on Docker
+# GitHub: https://github.com/jsoyer/ObsidianReforged
 
 # Pin to a specific Ubuntu LTS release for reproducible builds
 FROM ubuntu:24.04
 
-# Fetch dependencies — no sudo (privilege drop handled by gosu), no binfmt-support (build-host only)
+LABEL org.opencontainers.image.title="ObsidianReforged" \
+      org.opencontainers.image.description="Minecraft Java + Geyser + Floodgate + Paper on Docker" \
+      org.opencontainers.image.source="https://github.com/jsoyer/ObsidianReforged" \
+      org.opencontainers.image.licenses="MIT"
+
+# Install runtime dependencies and create /scripts in a single layer
+# - gosu: safe privilege drop (replaces sudo)
+# - iproute2: provides `ip route` for network detection (replaces legacy net-tools)
+# - libcurl4: runtime curl library (not the -dev headers)
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    openjdk-21-jre-headless tzdata curl unzip net-tools gawk openssl findutils pigz \
-    libc6 libcrypt1 libcurl4-openssl-dev ca-certificates nano jq gosu \
-    && apt-get clean && rm -rf /var/cache/apt/* /var/lib/apt/lists/*
+    openjdk-21-jre-headless tzdata curl unzip gawk openssl findutils pigz \
+    libcurl4 ca-certificates nano jq gosu iproute2 \
+    && apt-get clean && rm -rf /var/cache/apt/* /var/lib/apt/lists/* \
+    && mkdir /scripts
 
-# Set port environment variable
+# Environment variables — all overridable at runtime via -e or docker-compose
 ENV Port=25565
-
-# Set Bedrock port environment variable
 ENV BedrockPort=19132
-
-# Optional maximum memory Minecraft is allowed to use
-ENV MaxMemory=
-
-# Optional Paper Minecraft Version override
+ENV MaxMemory=""
 ENV Version="1.21.11"
-
-# Optional Timezone
 ENV TZ="America/Denver"
-
-# Optional folder to ignore during backup operations
 ENV NoBackup=""
-
-# Number of rolling backups to keep
 ENV BackupCount=10
-
-# Optional switch to skip permissions check
 ENV NoPermCheck=""
-
-# Optional switch to tell curl to suppress the progress meter which generates much less noise in the logs
 ENV QuietCurl=""
-
-# Optional switch to disable ViaVersion
 ENV NoViaVersion=""
-
-# Optional switch to use ViaVersion snapshot from Jenkins CI instead of stable GitHub releases
 ENV ViaVersionSnapshot=""
 
-# IPV4 Ports
+# Java port (TCP) and Bedrock/Geyser port (UDP only — RakNet does not use TCP)
 EXPOSE 25565/tcp
-EXPOSE 19132/tcp
 EXPOSE 19132/udp
 
-# Copy scripts to minecraftbe folder and make them executable
-RUN mkdir /scripts
-COPY *.sh /scripts/
-COPY *.yml /scripts/
-COPY server.properties /scripts/
-RUN chmod -R +x /scripts/*.sh
+# Explicit COPY — avoids glob surprises from new files added to the repo
+COPY --chmod=755 start.sh /scripts/
+COPY bukkit.yml spigot.yml paper-global.yml server.properties config.yml /scripts/
 
-# Set entrypoint to start.sh script
+# Health check — Minecraft server is reachable on the Java port
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD bash -c 'echo > /dev/tcp/localhost/25565' || exit 1
+
 ENTRYPOINT ["/bin/bash", "/scripts/start.sh"]
