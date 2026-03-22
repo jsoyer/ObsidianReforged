@@ -1,8 +1,9 @@
 # ObsidianReforged — Minecraft Java + Geyser + Floodgate + Paper on Docker
 # GitHub: https://github.com/jsoyer/ObsidianReforged
 
-# Pin to a specific Ubuntu LTS release for reproducible builds
-FROM ubuntu:24.04
+# Pin to a specific Ubuntu LTS digest for fully reproducible builds.
+# To update: docker pull ubuntu:24.04 && docker inspect ubuntu:24.04 | jq -r '.[0].RepoDigests[0]'
+FROM ubuntu:24.04@sha256:186072bba1b2f436cbb91ef2567abca677337cfc786c86e107d25b7072feef0c
 
 LABEL org.opencontainers.image.title="ObsidianReforged" \
       org.opencontainers.image.description="Minecraft Java + Geyser + Floodgate + Paper on Docker" \
