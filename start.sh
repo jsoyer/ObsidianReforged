@@ -59,6 +59,52 @@ run_curl() {
     fi
 }
 
+# ─── Safe download helper ────────────────────────────────────────────────────
+# Usage: safe_download TARGET URL [SHA256]
+# - Downloads to a temp file alongside TARGET, verifies checksum if provided.
+# - On success: atomically replaces TARGET.
+# - On failure (download error or checksum mismatch):
+#     - If TARGET already exists: warns and keeps the existing version (returns 0).
+#     - If TARGET does not exist: prints an error and returns 1
+#       (with set -e the caller will abort unless it uses || or if).
+safe_download() {
+    local target="$1"
+    local url="$2"
+    local expected_sha256="${3:-}"
+    local tmpfile
+    tmpfile=$(mktemp "${target}.XXXXXX")
+
+    if run_curl --fail -o "$tmpfile" "$url"; then
+        if [[ -n "$expected_sha256" ]]; then
+            if echo "$expected_sha256  $tmpfile" | sha256sum -c --quiet; then
+                mv "$tmpfile" "$target"
+                echo "SHA256 verified — $(basename "$target") updated."
+                return 0
+            else
+                rm -f "$tmpfile"
+                echo "ERROR: SHA256 mismatch for $(basename "$target")!"
+                if [ -e "$target" ]; then
+                    echo "Keeping existing version."
+                    return 0
+                fi
+                return 1
+            fi
+        else
+            mv "$tmpfile" "$target"
+            echo "$(basename "$target") updated (no checksum available)."
+            return 0
+        fi
+    else
+        rm -f "$tmpfile"
+        echo "WARNING: Download failed for $(basename "$target")."
+        if [ -e "$target" ]; then
+            echo "Keeping existing version."
+            return 0
+        fi
+        return 1
+    fi
+}
+
 # ─── Directory setup ─────────────────────────────────────────────────────────
 cd /minecraft
 mkdir -p /minecraft/downloads /minecraft/config /minecraft/backups /minecraft/plugins/Geyser-Spigot
@@ -139,15 +185,9 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
         FileName="paper-$Version-$Build.jar"
         if [[ -n "$SHA256" && "$SHA256" != "null" ]]; then
             echo "Downloading Paper $Version build $Build..."
-            run_curl --fail -o /minecraft/paperclip.jar \
-                "https://fill-data.papermc.io/v1/objects/$SHA256/$FileName"
-            echo "Verifying Paper download..."
-            if ! echo "$SHA256  /minecraft/paperclip.jar" | sha256sum -c --quiet; then
-                echo "ERROR: SHA256 verification failed for Paper! Aborting."
-                rm -f /minecraft/paperclip.jar
-                exit 1
-            fi
-            echo "Paper SHA256 verified."
+            safe_download /minecraft/paperclip.jar \
+                "https://fill-data.papermc.io/v1/objects/$SHA256/$FileName" \
+                "$SHA256"
         else
             echo "Unable to retrieve Paper build info for $Build"
         fi
@@ -160,36 +200,18 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
     FloodgateBuildInfo=$(run_curl -s \
         "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest") || FloodgateBuildInfo=""
     FloodgateSHA256=$(echo "$FloodgateBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null) || FloodgateSHA256=""
-    run_curl --fail -o /minecraft/plugins/Floodgate-Spigot.jar \
-        "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
-    if [[ -n "$FloodgateSHA256" && "$FloodgateSHA256" != "null" ]]; then
-        if ! echo "$FloodgateSHA256  /minecraft/plugins/Floodgate-Spigot.jar" | sha256sum -c --quiet; then
-            echo "ERROR: SHA256 verification failed for Floodgate! Aborting."
-            rm -f /minecraft/plugins/Floodgate-Spigot.jar
-            exit 1
-        fi
-        echo "Floodgate SHA256 verified."
-    else
-        echo "WARNING: Could not fetch Floodgate SHA256, skipping verification."
-    fi
+    safe_download /minecraft/plugins/Floodgate-Spigot.jar \
+        "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot" \
+        "${FloodgateSHA256:-}"
 
     # Geyser
     echo "Updating Geyser..."
     GeyserBuildInfo=$(run_curl -s \
         "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest") || GeyserBuildInfo=""
     GeyserSHA256=$(echo "$GeyserBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null) || GeyserSHA256=""
-    run_curl --fail -o /minecraft/plugins/Geyser-Spigot.jar \
-        "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot"
-    if [[ -n "$GeyserSHA256" && "$GeyserSHA256" != "null" ]]; then
-        if ! echo "$GeyserSHA256  /minecraft/plugins/Geyser-Spigot.jar" | sha256sum -c --quiet; then
-            echo "ERROR: SHA256 verification failed for Geyser! Aborting."
-            rm -f /minecraft/plugins/Geyser-Spigot.jar
-            exit 1
-        fi
-        echo "Geyser SHA256 verified."
-    else
-        echo "WARNING: Could not fetch Geyser SHA256, skipping verification."
-    fi
+    safe_download /minecraft/plugins/Geyser-Spigot.jar \
+        "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot" \
+        "${GeyserSHA256:-}"
 
     # ViaVersion
     if [ -z "${NoViaVersion:-}" ]; then
@@ -200,9 +222,9 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
                 | grep -oE 'href="ViaVersion[^"]+' | head -1 | sed 's/href="//') || ViaVersionVersion=""
             if [ -n "$ViaVersionVersion" ]; then
                 echo "Found ViaVersion snapshot: $ViaVersionVersion"
-                run_curl --fail -o /minecraft/plugins/ViaVersion.jar \
+                safe_download /minecraft/plugins/ViaVersion.jar \
                     "https://ci.viaversion.com/job/ViaVersion/lastBuild/artifact/build/libs/$ViaVersionVersion" \
-                    || echo "WARNING: ViaVersion snapshot download failed, skipping."
+                    || true
             else
                 echo "Unable to find ViaVersion snapshot."
             fi
@@ -216,8 +238,8 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
                 || ViaVersionTag=""
             if [[ -n "$ViaVersionURL" && "$ViaVersionURL" != "null" ]]; then
                 echo "Updating ViaVersion to $ViaVersionTag..."
-                run_curl --fail -o /minecraft/plugins/ViaVersion.jar "$ViaVersionURL" \
-                    || echo "WARNING: ViaVersion download failed, skipping."
+                safe_download /minecraft/plugins/ViaVersion.jar "$ViaVersionURL" \
+                    || true
             else
                 echo "Unable to find ViaVersion release."
             fi
@@ -243,7 +265,7 @@ fi
 # ─── Start server ────────────────────────────────────────────────────────────
 echo "Starting Minecraft server..."
 
-if [[ -z "${MaxMemory:-}" ]] || [[ "$MaxMemory" -le 0 ]]; then
+if [[ -z "${MaxMemory:-}" ]] || ! [[ "${MaxMemory:-}" =~ ^[0-9]+$ ]] || [[ "${MaxMemory:-}" -le 0 ]]; then
     exec java -Xms400M -jar /minecraft/paperclip.jar
 else
     exec java -Xms400M -Xmx"${MaxMemory}M" -jar /minecraft/paperclip.jar
