@@ -227,6 +227,8 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
                 | grep -oE 'href="ViaVersion[^"]+' | head -1 | sed 's/href="//') || ViaVersionVersion=""
             if [ -n "$ViaVersionVersion" ]; then
                 echo "Found ViaVersion snapshot: $ViaVersionVersion"
+                # NOTE: Jenkins CI does not publish checksums for snapshot artifacts.
+                # Integrity relies on TLS to ci.viaversion.com. No SHA256 available.
                 safe_download /minecraft/plugins/ViaVersion.jar \
                     "https://ci.viaversion.com/job/ViaVersion/lastBuild/artifact/build/libs/$ViaVersionVersion" \
                     || true
@@ -244,6 +246,8 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
                 || ViaVersionTag=""
             if [[ -n "$ViaVersionURL" && "$ViaVersionURL" != "null" ]]; then
                 echo "Updating ViaVersion to $ViaVersionTag..."
+                # NOTE: GitHub Releases API does not expose SHA256 checksums.
+                # Integrity relies on TLS to github.com. No SHA256 available.
                 safe_download /minecraft/plugins/ViaVersion.jar "$ViaVersionURL" \
                     || true
             else

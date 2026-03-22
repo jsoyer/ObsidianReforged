@@ -12,7 +12,7 @@ services:
     environment:
       RCON_HOST: minecraft
       RCON_PORT: 25575
-      RCON_PASSWORD: ${RCON_PASSWORD:-changeme}
+      RCON_PASSWORD: ${RCON_PASSWORD:?Set RCON_PASSWORD in your .env file}
     networks:
       - monitoring
       - default
@@ -30,7 +30,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     networks:
       - monitoring
 
@@ -38,14 +38,14 @@ services:
     image: grafana/grafana:latest
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in your .env file}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     networks:
       - monitoring
     depends_on:
