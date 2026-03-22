@@ -97,7 +97,8 @@ jobs:
         #               ghcr.io/jsoyer/obsidianreforged:latest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"
+          REPO: ${{ github.repository }}
+        run: cosign sign --yes "ghcr.io/${REPO,,}@${DIGEST}"
 
       - name: Sign image on Docker Hub (keyless via Sigstore OIDC)
         if: env.DOCKERHUB_ENABLED == 'true'
