@@ -1,202 +1,222 @@
-# 🪨 ObsidianReforged — Minecraft Java + Geyser + Floodgate + Paper on Docker
+# ObsidianReforged — Minecraft Java + Geyser + Floodgate on Docker
 
-A Docker container for a fully-featured Minecraft Java dedicated server with Geyser and Floodgate, allowing **Bedrock clients to join your Java server**.
+[![Build & Push](https://github.com/jsoyer/ObsidianReforged/actions/workflows/build.yml/badge.svg)](https://github.com/jsoyer/ObsidianReforged/actions/workflows/build.yml)
+[![CI](https://github.com/jsoyer/ObsidianReforged/actions/workflows/ci.yml/badge.svg)](https://github.com/jsoyer/ObsidianReforged/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/jsoyer/ObsidianReforged/actions/workflows/security-scan.yml/badge.svg)](https://github.com/jsoyer/ObsidianReforged/actions/workflows/security-scan.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/jsoyer/obsidian-reforged)](https://hub.docker.com/r/jsoyer/obsidian-reforged)
 
-Runs the [Paper](https://papermc.io/) server with plugin support (Paper / Spigot / Bukkit), multi-arch builds, and automatic updates.
+A Docker image for a Minecraft Java server with [Geyser](https://geysermc.org/) and [Floodgate](https://wiki.geysermc.org/floodgate/), letting **Bedrock clients join your Java server** — no extra proxy required.
 
----
-
-## 🙏 Credits
-
-This project is a fork of [Legendary Java Minecraft + Geyser + Floodgate + Paper Dedicated Server for Docker](https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate) by **James A. Chambers** ([@TheRemote](https://github.com/TheRemote)).
-
-A huge thank you to James for the original work, which this project builds upon.
-The original Docker image is available at [05jchambers/legendary-minecraft-geyser-floodgate](https://hub.docker.com/r/05jchambers/legendary-minecraft-geyser-floodgate).
+Runs [Paper](https://papermc.io/) with full plugin support, multi-arch builds (amd64, arm64, arm/v7, riscv64…), and automatic plugin updates on startup.
 
 ---
 
-## ✨ Features
+## Credits
 
-- 🎮 Java and Bedrock clients can connect to the same server (via Geyser + Floodgate)
-- ⚡ Runs the highly efficient Paper Minecraft server
-- 🔑 Bedrock players authenticate with their Bedrock credentials (Floodgate)
-- 💾 Named Docker volume for safe, accessible server data storage
-- 🧩 Plugin support: Paper, Spigot, Bukkit
-- 🔄 Automatic backups on each restart (rolling, configurable)
-- 🚀 Auto-updates to the latest Minecraft version on start
-- 🍓 Runs on all Docker platforms including Raspberry Pi (multi-arch)
-- ☸️ Kubernetes support
+Fork of [Legendary Java Minecraft + Geyser + Floodgate](https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate) by **James A. Chambers** ([@TheRemote](https://github.com/TheRemote)). Thank you for the original work.
 
 ---
 
-## 🐳 Docker Usage
+## Features
 
-**1. Create a named volume:**
+- Java and Bedrock clients connect to the same server (Geyser + Floodgate)
+- Bedrock players authenticate with their own credentials (no Java account needed)
+- Paper server — high performance, full plugin ecosystem (Paper / Spigot / Bukkit)
+- Automatic backups on each restart (rolling, configurable count)
+- Auto-updates Paper, Geyser, Floodgate, and ViaVersion on startup
+- Multi-arch: amd64, arm64, arm/v7, riscv64, s390x, ppc64le
+- Signed images — verifiable with cosign (see [Verify the image](#verify-the-image))
+- Kubernetes manifests included
+
+---
+
+## Quick start
 
 ```bash
-docker volume create yourvolumename
-```
+docker volume create mc-data
 
-**2. Start the server:**
-
-Default ports:
-```bash
 docker run -it \
-  -v yourvolumename:/minecraft \
+  -v mc-data:/minecraft \
   -p 25565:25565 \
   -p 19132:19132/udp \
-  -p 19132:19132 \
   --restart unless-stopped \
   jsoyer/obsidian-reforged:latest
 ```
 
-Custom ports:
-```bash
-docker run -it \
-  -v yourvolumename:/minecraft \
-  -p 12345:12345 -e Port=12345 \
-  -p 54321:54321/udp -p 54321:54321 -e BedrockPort=54321 \
-  --restart unless-stopped \
-  jsoyer/obsidian-reforged:latest
-```
+Java players connect to `your-host:25565`.
+Bedrock players connect to `your-host:19132`.
 
-Specific Minecraft version:
-```bash
-docker run -it \
-  -v yourvolumename:/minecraft \
-  -p 25565:25565 -p 19132:19132/udp -p 19132:19132 \
-  -e Version=1.21.4 \
-  --restart unless-stopped \
-  jsoyer/obsidian-reforged:latest
-```
-
-Memory limit (in MB):
-```bash
-docker run -it \
-  -v yourvolumename:/minecraft \
-  -p 25565:25565 -p 19132:19132/udp -p 19132:19132 \
-  -e MaxMemory=2048 \
-  --restart unless-stopped \
-  jsoyer/obsidian-reforged:latest
-```
+First startup takes 2–3 minutes (Paper bootstrap + plugin downloads).
 
 ---
 
-## 📦 Docker Compose
+## Docker Compose
+
+Use the provided `docker-compose.yml` at the root of this repo:
+
+```bash
+docker compose up -d
+docker compose logs -f minecraft
+```
+
+To customise, uncomment and adjust the environment variables in `docker-compose.yml`:
 
 ```yaml
-version: "3.5"
-services:
-  minecraft:
-    image: jsoyer/obsidian-reforged:latest
-    restart: "unless-stopped"
-    ports:
-      - 25565:25565
-      - 19132:19132
-      - 19132:19132/udp
-    volumes:
-      - minecraft:/minecraft
-    stdin_open: true
-    tty: true
-    entrypoint: ["/bin/bash", "/scripts/start.sh"]
-    environment:
-      Port: "25565"
-      BedrockPort: "19132"
-      TZ: "America/Denver"
-      #BackupCount: 10
-      #MaxMemory: 2048
-      #Version: 1.21.11
-      #NoBackup: "plugins"
-      #NoPermCheck: "Y"
-      #NoViaVersion: "Y"
-      #QuietCurl: "Y"
-volumes:
-  minecraft:
-    driver: local
+environment:
+  Port: "25565"
+  BedrockPort: "19132"
+  TZ: "America/Denver"
+  #MaxMemory: 2048       # Max JVM heap in MB
+  #Version: "1.21.11"   # Pin a specific Minecraft version
+  #BackupCount: 10
+```
+
+See [Environment variables](#environment-variables) for the full reference.
+
+### Production overlay
+
+Pin the image tag and tighten resource limits:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+### Development overlay
+
+Bind-mount `start.sh` for live iteration:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 ---
 
-## ☸️ Kubernetes Usage
-
-Create a suitable PVC using your preferred StorageClass, then pass `k8s="True"` as an environment variable:
-
-```yaml
-env:
-  - name: MaxMemory
-    value: '1024'
-  - name: TZ
-    value: Europe/London
-  - name: k8s
-    value: "True"
-```
-
-> ⚠️ Terminal features are not available in Kubernetes mode.
-
-Example manifests are available in the `/kubernetes` folder (based on Longhorn storage + LoadBalancer — adjust to fit your environment).
-
----
-
-## ⚙️ Environment Variables
+## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `Port` | `25565` | Java server port |
-| `BedrockPort` | `19132` | Geyser/Bedrock port |
-| `Version` | latest | Minecraft version (e.g. `1.21.4`) |
-| `MaxMemory` | unlimited | Max JVM memory in MB |
-| `TZ` | `America/Denver` | Timezone ([list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)) |
-| `BackupCount` | `10` | Number of rolling backups to keep |
-| `NoBackup` | — | Comma-separated folders to exclude from backups |
-| `NoPermCheck` | — | Set to `Y` to skip permissions check on startup |
+| `Port` | `25565` | Java server port (TCP) |
+| `BedrockPort` | `19132` | Geyser/Bedrock port (UDP) |
+| `Version` | `1.21.11` | Minecraft version to run (e.g. `1.21.4`) |
+| `MaxMemory` | — | Max JVM heap in MB. Unset = unlimited (not recommended) |
+| `TZ` | `America/Denver` | Timezone — [full list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) |
+| `BackupCount` | `10` | Number of rolling backups to keep on startup |
+| `NoBackup` | — | Comma-separated folders to exclude from backups (e.g. `plugins,cache`) |
+| `NoPermCheck` | — | Set to `Y` to skip the permissions check on startup |
 | `NoViaVersion` | — | Set to `Y` to disable the ViaVersion plugin |
-| `QuietCurl` | — | Set to `Y` to suppress curl download output |
+| `ViaVersionSnapshot` | — | Set to `Y` to install the latest ViaVersion snapshot instead of stable |
+| `GeyserVersion` | `latest` | Pin Geyser to a specific version (e.g. `2.4.0`) |
+| `FloodgateVersion` | `latest` | Pin Floodgate to a specific version |
+| `QuietCurl` | — | Set to `Y` to suppress curl download progress output |
 
 ---
 
-## 📁 Accessing Server Files
+## Kubernetes
 
-Find the volume path on the host:
+Ready-to-apply manifests in `kubernetes/`:
 
 ```bash
-docker volume inspect yourvolumename
+kubectl apply -f kubernetes/
+```
+
+| File | Resource |
+|------|----------|
+| `01-namespace.yaml` | Namespace `minecraft` |
+| `02-pvc.yaml` | PersistentVolumeClaim (3 Gi) |
+| `03-deployment.yaml` | Deployment with liveness + readiness probes |
+| `04-service.yaml` | LoadBalancer service (Java TCP + Bedrock UDP) |
+| `05-serviceaccount.yaml` | Dedicated ServiceAccount |
+| `06-configmap.yaml` | Environment variables |
+| `07-networkpolicy.yaml` | Default-deny + player ports + outbound HTTPS/DNS |
+
+See [docs/kubernetes.md](docs/kubernetes.md) for storage class configuration, resource tuning, and rollback procedures.
+
+---
+
+## Monitoring
+
+A Prometheus + Grafana + cAdvisor stack is available as a compose overlay:
+
+```bash
+# Required — set in a .env file at the project root
+RCON_PASSWORD=your-rcon-password
+GRAFANA_PASSWORD=your-grafana-password
+```
+
+```bash
+docker compose -f docker-compose.yml \
+               -f docker-compose.monitoring.yml up -d
+```
+
+- Grafana: `http://localhost:3000` — SRE dashboard included (availability SLO, player count, container resources)
+- Prometheus: `http://localhost:9090` — loopback only
+
+For alert definitions and SLO targets, see `monitoring/alert_rules.yml`.
+For alert response procedures, see [docs/runbooks.md](docs/runbooks.md).
+
+> Monitoring requires `enable-rcon=true` in `server.properties` and the `RCON_PASSWORD` env var.
+
+---
+
+## Accessing server files
+
+```bash
+# Find the volume path
+docker volume inspect mc-data
 ```
 
 Typical paths:
-- 🐧 **Linux:** `/var/lib/docker/volumes/yourvolumename/_data`
-- 🪟 **Windows:** `C:\ProgramData\DockerDesktop` or `\wsl$\docker-desktop-data\...`
-- 🍎 **Mac:** `~/Library/Containers/com.docker.docker/Data/vms/0/`
+- **Linux:** `/var/lib/docker/volumes/mc-data/_data`
+- **Windows:** `\\wsl$\docker-desktop-data\...`
+- **macOS:** `~/Library/Containers/com.docker.docker/Data/vms/0/`
 
-Key files:
-- 🔧 Server config: `server.properties`
-- 💾 Backups: `backups/`
-- 🌉 Geyser config: `plugins/Geyser-Spigot/config.yml`
-- 🔓 Floodgate config: `plugins/floodgate/config.yml`
+Key locations inside the volume:
 
----
-
-## 🧩 Plugins
-
-Drop any `.jar` plugin file into the `plugins/` folder on your volume and restart the container.
-
-Compatible with Paper / Spigot / Bukkit plugins.
-Browse plugins at [dev.bukkit.org](https://dev.bukkit.org/bukkit-plugins).
+| Path | Contents |
+|------|----------|
+| `server.properties` | Server configuration |
+| `backups/` | Rolling tar.gz backups |
+| `plugins/` | Plugin JARs |
+| `plugins/Geyser-Spigot/config.yml` | Geyser configuration |
+| `plugins/floodgate/config.yml` | Floodgate configuration |
 
 ---
 
-## 🛠️ Troubleshooting
+## Plugins
 
-### ☁️ Oracle Cloud VMs
+Drop any `.jar` into `plugins/` on your volume and restart the container.
 
-If nobody can connect, you need to open ports in **two places**:
-1. The Virtual Cloud Network (VCN) security list (TCP/UDP ingress)
-2. A Network Security Group assigned to your instance
+Compatible with Paper, Spigot, and Bukkit plugins.
+Browse at [dev.bukkit.org](https://dev.bukkit.org/bukkit-plugins) or [modrinth.com](https://modrinth.com/plugins).
 
-Both are required.
+---
 
-### 🪟 Hyper-V (UDP bug)
+## Verify the image
 
-Use a **Generation 1 VM** with the **Legacy LAN** network driver.
+Images are signed with [cosign](https://docs.sigstore.dev/cosign/overview/) via Sigstore keyless OIDC. Verify before running:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "github.com/jsoyer" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/jsoyer/obsidianreforged:latest
+```
+
+---
+
+## Troubleshooting
+
+### Nobody can connect (Oracle Cloud)
+
+Open ports in **two places**:
+1. Virtual Cloud Network security list (TCP + UDP ingress rules)
+2. Network Security Group attached to your instance
+
+Both are required — either alone is not sufficient.
+
+### Bedrock UDP not working (Hyper-V)
+
+Use a **Generation 1 VM** with the **Legacy LAN** network adapter.
 
 Alternatively, disable TX offloading:
 
@@ -205,23 +225,30 @@ sudo apt install ethtool
 sudo ethtool -K eth0 tx off
 ```
 
-To make it persistent, add `offload-tx off` to your network interface config in `/etc/network/interfaces`.
+To persist across reboots, add `offload-tx off` to your interface config in `/etc/network/interfaces`.
+
+### Server takes too long to start
+
+The first startup downloads Paper, Geyser, Floodgate, and ViaVersion — allow 3–5 minutes. Subsequent starts are faster (only downloads updates).
+
+Set `QuietCurl=Y` to suppress download progress if logs are too noisy.
 
 ---
 
-## 📜 Update History
+## Documentation
 
-- 🪨 **March 2026** — Fork to ObsidianReforged, project relaunched
-- **January 2026** — Update to 1.21.11, migrate to Paper API v3
-- **July 2025** — Multi-arch builds via `buildx`
-- **July 2025** — Default version updated to 1.21.8
-- **February 2025** — Default version updated to 1.21.4, fix Paper API URLs
-- **December 2024** — Fix ViaVersion, server no longer runs as root (runs as `minecraft` user)
-- **June 2024** — Default version updated to 1.21
-- **May 2024** — OpenJDK updated to 21, default version 1.20.6
-- **April 2023** — Add `NoViaVersion` environment variable
-- **March 2023** — Migrate `paper.yml` to `paper-global.yml`
-- **March 2023** — Add ViaVersion plugin for cross-version client support
-- **November 2022** — Add `QuietCurl` environment variable
-- **October 2022** — Add `BackupCount`, `NoBackup`, `NoPermCheck` environment variables; RISC arch support; switch to `ubuntu:rolling`
-- **August 2022** — Initial release (upstream)
+| Doc | Contents |
+|-----|----------|
+| [docs/configuration.md](docs/configuration.md) | Full environment variable reference |
+| [docs/deployment.md](docs/deployment.md) | Multi-env deployment, Docker Secrets, rollback |
+| [docs/kubernetes.md](docs/kubernetes.md) | Kubernetes walkthrough |
+| [docs/runbooks.md](docs/runbooks.md) | Alert response runbooks |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Local build, lint, release process |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+
+---
+
+## Credits
+
+This project is a fork of [Legendary Java Minecraft + Geyser + Floodgate](https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate) by **James A. Chambers** ([@TheRemote](https://github.com/TheRemote)).
+Original image: [05jchambers/legendary-minecraft-geyser-floodgate](https://hub.docker.com/r/05jchambers/legendary-minecraft-geyser-floodgate).
