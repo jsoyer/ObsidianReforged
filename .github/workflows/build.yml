@@ -14,6 +14,12 @@ jobs:
     name: Build multi-arch image
     runs-on: ubuntu-latest
 
+    # Expose whether Docker Hub secrets are configured as a job-level env var.
+    # secrets context is not allowed in step-level if: conditions,
+    # but env context is — so we bridge via a job env variable.
+    env:
+      DOCKERHUB_ENABLED: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+
     permissions:
       contents: read
       packages: write
@@ -32,7 +38,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        if: env.DOCKERHUB_ENABLED == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -50,12 +56,10 @@ jobs:
         shell: bash
         run: |
           IMAGES="ghcr.io/${{ github.repository }}"
-          if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
+          if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
             IMAGES="${{ env.IMAGE }}"$'\n'"${IMAGES}"
           fi
           echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
-        env:
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract image metadata
         id: meta
@@ -94,7 +98,7 @@ jobs:
         run: cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"
 
       - name: Sign image on Docker Hub (keyless via Sigstore OIDC)
-        if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        if: env.DOCKERHUB_ENABLED == 'true'
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${{ env.IMAGE }}@${DIGEST}"
