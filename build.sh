@@ -4,7 +4,9 @@
 #   docker run --rm --privileged tonistiigi/binfmt --install all
 set -euo pipefail
 
-VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION=$(git describe --tags --always --dirty 2>/dev/null \
+    || ([ -f VERSION ] && cat VERSION) \
+    || echo "dev")
 IMAGE="jsoyer/obsidian-reforged"
 
 echo "Building $IMAGE:$VERSION ..."

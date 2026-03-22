@@ -31,6 +31,8 @@ ENV NoPermCheck=""
 ENV QuietCurl=""
 ENV NoViaVersion=""
 ENV ViaVersionSnapshot=""
+ENV GeyserVersion=""
+ENV FloodgateVersion=""
 
 # Java port (TCP) and Bedrock/Geyser port (UDP only — RakNet does not use TCP)
 EXPOSE 25565/tcp

@@ -1,42 +1,100 @@
-# Contributing
+# Contributing to ObsidianReforged
 
-Hello!  Everyone is welcome to contribute to the project.  That could include reporting issues, pull requests, fixing bugs, writing documentation, translations, anything!
+Everyone is welcome — bug reports, pull requests, documentation, translations!
 
-## Looking for support?
+## Support
 
-The best places to get support are the project's issues section or my blog's comments section.
+Open an issue on the [GitHub repository](https://github.com/jsoyer/ObsidianReforged).
 
-## How to report a bug
+## Reporting a bug
 
-Think you found a bug? Please check the list of open issues to see if your bug has already been reported. If it hasn't please submit a new issue.
+- Search existing issues first to avoid duplicates
+- Include: exact error output, log files, server version, OS/architecture
+- One bug per issue
+- Describe expected vs. actual behavior and steps to reproduce
 
-Here are a few tips for writing *great* bug reports:
+## Suggesting a feature
 
-* Describe the specific problem (e.g., "server won't load and log files are showing this specific crash" versus "getting an error")
-* Include the steps to reproduce the bug, what you expected to happen, and what happened instead
-* Check that you are using the latest version of the project and its dependencies
-* Include what version of the project your using, as well as any relevant dependencies
-* Only include one bug per issue. If you have discovered two bugs, please file two issues
-* Even if you don't know how to fix the bug, including a failing test may help others track it down
-* Always include error output and log files when possible
+Open an issue describing the feature, why you want it, and how it should work.
+If the idea is beyond the project scope, a fork may be the better path.
 
-## How to suggest a feature or enhancement
+## Local development
 
-Feature requests are welcome. But take a moment to find out whether your idea fits with the scope and goals of the project.  Sometimes it makes more sense to fork the project if it's beyond the scope of this specific project.
+### Requirements
 
-Open an issue which describes the feature you would like to see, why you want it, how it should work, etc.
+- Docker with Buildx + QEMU for multi-arch builds:
+  ```bash
+  docker run --rm --privileged tonistiigi/binfmt --install all
+  ```
+- `shellcheck` — shell script linting
+- `hadolint` — Dockerfile linting
 
-## How to propose changes
+### Quick local build
 
-Here's a few general guidelines for proposing changes:
+```bash
+# Single-arch for local testing (fastest)
+docker build -f Build.Dockerfile -t obsidian-reforged:dev .
 
-* Each pull request should implement **one** feature or bug fix. If you want to add or fix more than one thing, submit more than one pull request
-* Do not commit changes to files that are irrelevant to your feature or bug fix
-* Write a good commit message describing what you are changing and why
+# Run with a test volume
+docker run -it --rm \
+  -v minecraft-test:/minecraft \
+  -p 25565:25565 -p 19132:19132/udp \
+  -e Version=1.21.11 \
+  obsidian-reforged:dev
+```
 
-At a high level, [the process for proposing changes](https://guides.github.com/introduction/flow/) is:
+### Iterating on start.sh
 
-1. Fork and clone the project
-2. Make your change, add tests, and make sure the tests still pass
-3. Push to your fork and submit a pull request
-4. Pat your self on the back and wait for your pull request to be reviewed and merged
+Bind-mount the script without rebuilding the image:
+
+```bash
+docker run -it --rm \
+  -v minecraft-test:/minecraft \
+  -v "$(pwd)/start.sh:/scripts/start.sh:ro" \
+  obsidian-reforged:dev
+```
+
+### Multi-arch build (requires Docker Hub credentials)
+
+```bash
+./build.sh
+```
+
+### Linting (run before committing)
+
+```bash
+shellcheck start.sh
+hadolint Build.Dockerfile
+```
+
+## Commit style
+
+Conventional commits are required — the release workflow uses them to generate the changelog:
+
+| Prefix | Use for |
+|--------|---------|
+| `feat:` | New capability |
+| `fix:` | Bug fix |
+| `refactor:` | Code change with no behaviour change |
+| `docs:` | Documentation only |
+| `chore:` | Maintenance, dependency bumps |
+| `style:` | Formatting, no logic change |
+
+Example: `fix: correct BedrockPort variable collision`
+
+## Pull request process
+
+1. Fork the repository and create a branch from `main`
+2. Make your changes — one feature or bug fix per PR
+3. Run `shellcheck` and `hadolint` locally
+4. Open a PR against `main` — CI runs automatically (ShellCheck, Hadolint, yamllint)
+5. A maintainer will review and merge
+
+## Release process (maintainers)
+
+1. Add a `## x.y.z - YYYY-MM-DD` block to `CHANGELOG.md`
+2. Update `VERSION`
+3. Commit: `git commit -m "chore: release vX.Y.Z"`
+4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
+5. The `build.yml` workflow builds and pushes the multi-arch image automatically
+6. The `release.yml` workflow creates the GitHub Release with the changelog notes

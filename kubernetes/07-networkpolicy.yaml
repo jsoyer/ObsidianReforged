@@ -1,0 +1,56 @@
+---
+# Deny all ingress and egress by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: minecraft
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Allow the Minecraft pod to reach the internet (plugin/update downloads)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minecraft-allow-egress-internet
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: minecraft
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443    # HTTPS — Paper, Geyser, ViaVersion APIs
+        - protocol: TCP
+          port: 80     # HTTP — fallback
+        - protocol: UDP
+          port: 53     # DNS
+
+---
+# Allow inbound player connections on Java and Bedrock ports
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minecraft-allow-ingress-players
+  namespace: minecraft
+spec:
+  podSelector:
+    matchLabels:
+      app: minecraft
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 25565   # Java Edition
+        - protocol: UDP
+          port: 19132   # Bedrock/Geyser (RakNet)
+        - protocol: UDP
+          port: 19133   # Bedrock/Geyser IPv6

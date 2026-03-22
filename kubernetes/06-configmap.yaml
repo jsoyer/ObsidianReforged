@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minecraft-config
+  namespace: minecraft
+data:
+  # Minecraft Java port (TCP)
+  Port: "25565"
+  # Geyser/Bedrock port (UDP)
+  BedrockPort: "19132"
+  # Minecraft version to run — update to pin a specific release
+  Version: "1.21.11"
+  # Timezone for logs and backups
+  TZ: "America/Denver"
+  # Number of rolling backups to keep
+  BackupCount: "10"
+  # Suppress curl download progress output (set to "Y" to enable)
+  QuietCurl: "Y"
+  # Disable ViaVersion plugin (set to "Y" to disable)
+  # NoViaVersion: "Y"
+  # Comma-separated folders to exclude from backups
+  # NoBackup: "plugins"

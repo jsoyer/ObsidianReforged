@@ -1,0 +1,60 @@
+# ObsidianReforged — Monitoring overlay
+# Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Adds Prometheus + Grafana + minecraft-prometheus-exporter alongside the server.
+# Grafana UI: http://localhost:3000  (admin / admin — change on first login)
+# Prometheus UI: http://localhost:9090
+
+services:
+  minecraft-exporter:
+    image: ghcr.io/dirien/minecraft-prometheus-exporter:latest
+    restart: unless-stopped
+    environment:
+      RCON_HOST: minecraft
+      RCON_PORT: 25575
+      RCON_PASSWORD: ${RCON_PASSWORD:-changeme}
+    networks:
+      - monitoring
+      - default
+    depends_on:
+      - minecraft
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "9090:9090"
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,35 @@
+groups:
+  - name: minecraft
+    interval: 30s
+    rules:
+
+      - alert: MinecraftServerDown
+        expr: up{job="minecraft"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Minecraft server unreachable"
+          description: "The minecraft-exporter has been unable to reach the server for more than 2 minutes."
+
+      - alert: MinecraftBackupStale
+        # Alert if no backup file has been modified in the last 25 hours.
+        # Requires the host backup directory to be mounted into a node-exporter or
+        # custom file-age metric. Placeholder — adapt to your monitoring setup.
+        expr: |
+          (time() - minecraft_last_backup_timestamp_seconds) > 90000
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Minecraft backup is stale"
+          description: "Last backup is older than 25 hours."
+
+      - alert: MinecraftHighPlayerCount
+        expr: minecraft_players_online_count > 18
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High player count"
+          description: "More than 18 players online — server may be under load."

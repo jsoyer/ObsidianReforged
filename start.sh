@@ -195,22 +195,24 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
         echo "Unable to retrieve latest Paper build"
     fi
 
-    # Floodgate
-    echo "Updating Floodgate..."
+    # Floodgate — pin to a specific version with FloodgateVersion=2.2.3 (optional)
+    _floodgate_ver="${FloodgateVersion:-latest}"
+    echo "Updating Floodgate (${_floodgate_ver})..."
     FloodgateBuildInfo=$(run_curl -s \
-        "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest") || FloodgateBuildInfo=""
+        "https://download.geysermc.org/v2/projects/floodgate/versions/${_floodgate_ver}/builds/latest") || FloodgateBuildInfo=""
     FloodgateSHA256=$(echo "$FloodgateBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null) || FloodgateSHA256=""
     safe_download /minecraft/plugins/Floodgate-Spigot.jar \
-        "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot" \
+        "https://download.geysermc.org/v2/projects/floodgate/versions/${_floodgate_ver}/builds/latest/downloads/spigot" \
         "${FloodgateSHA256:-}"
 
-    # Geyser
-    echo "Updating Geyser..."
+    # Geyser — pin to a specific version with GeyserVersion=2.4.0 (optional)
+    _geyser_ver="${GeyserVersion:-latest}"
+    echo "Updating Geyser (${_geyser_ver})..."
     GeyserBuildInfo=$(run_curl -s \
-        "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest") || GeyserBuildInfo=""
+        "https://download.geysermc.org/v2/projects/geyser/versions/${_geyser_ver}/builds/latest") || GeyserBuildInfo=""
     GeyserSHA256=$(echo "$GeyserBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null) || GeyserSHA256=""
     safe_download /minecraft/plugins/Geyser-Spigot.jar \
-        "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot" \
+        "https://download.geysermc.org/v2/projects/geyser/versions/${_geyser_ver}/builds/latest/downloads/spigot" \
         "${GeyserSHA256:-}"
 
     # ViaVersion
@@ -232,8 +234,9 @@ if run_curl -s -o /dev/null "https://papermc.io"; then
             echo "Updating ViaVersion (stable from GitHub Releases)..."
             ViaVersionRelease=$(run_curl -s \
                 "https://api.github.com/repos/ViaVersion/ViaVersion/releases/latest") || ViaVersionRelease=""
-            ViaVersionURL=$(echo "$ViaVersionRelease" | jq -r '.assets[0].browser_download_url' 2>/dev/null) \
-                || ViaVersionURL=""
+            ViaVersionURL=$(echo "$ViaVersionRelease" \
+                | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url' 2>/dev/null \
+                | head -1) || ViaVersionURL=""
             ViaVersionTag=$(echo "$ViaVersionRelease" | jq -r '.tag_name' 2>/dev/null) \
                 || ViaVersionTag=""
             if [[ -n "$ViaVersionURL" && "$ViaVersionURL" != "null" ]]; then

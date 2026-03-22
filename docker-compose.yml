@@ -40,6 +40,8 @@ services:
       #NoPermCheck: "Y"     # Skip permissions check on startup
       #NoViaVersion: "Y"    # Disable ViaVersion plugin
       #QuietCurl: "Y"       # Suppress curl download progress output
+      #GeyserVersion: ""    # Pin Geyser to a specific version (e.g. "2.4.0"), empty = latest
+      #FloodgateVersion: "" # Pin Floodgate to a specific version, empty = latest
 
 volumes:
   minecraft:
