@@ -275,8 +275,84 @@ fi
 # ─── Start server ────────────────────────────────────────────────────────────
 echo "Starting Minecraft server..."
 
+# Aikar's JVM flags — https://docs.papermc.io/paper/aikars-flags
+# G1GC tuning differs above/below 12 GB heap (region size, reserve %, new gen %).
+# -Xms == -Xmx prevents heap resizing pauses (Paper recommendation).
 if [[ -z "${MaxMemory:-}" ]] || ! [[ "${MaxMemory:-}" =~ ^[0-9]+$ ]] || [[ "${MaxMemory:-}" -le 0 ]]; then
-    exec java -Xms400M -jar /minecraft/paperclip.jar
+    # No memory cap — use conservative defaults (400 MB heap, no upper bound)
+    exec java \
+        -Xms400M \
+        -XX:+UseG1GC \
+        -XX:+ParallelRefProcEnabled \
+        -XX:MaxGCPauseMillis=200 \
+        -XX:+UnlockExperimentalVMOptions \
+        -XX:+DisableExplicitGC \
+        -XX:+AlwaysPreTouch \
+        -XX:G1NewSizePercent=30 \
+        -XX:G1MaxNewSizePercent=40 \
+        -XX:G1HeapRegionSize=8M \
+        -XX:G1ReservePercent=20 \
+        -XX:G1HeapWastePercent=5 \
+        -XX:G1MixedGCCountTarget=4 \
+        -XX:InitiatingHeapOccupancyPercent=15 \
+        -XX:G1MixedGCLiveThresholdPercent=90 \
+        -XX:G1RSetUpdatingPauseTimePercent=5 \
+        -XX:SurvivorRatio=32 \
+        -XX:+PerfDisableSharedMem \
+        -XX:MaxTenuringThreshold=1 \
+        -Dusing.aikars.flags=https://mcflags.emc.gs \
+        -Daikars.new.flags=true \
+        -jar /minecraft/paperclip.jar
+elif [[ "${MaxMemory}" -ge 12288 ]]; then
+    # 12 GB+ heap — larger G1 region size and adjusted percentages
+    exec java \
+        -Xms"${MaxMemory}M" \
+        -Xmx"${MaxMemory}M" \
+        -XX:+UseG1GC \
+        -XX:+ParallelRefProcEnabled \
+        -XX:MaxGCPauseMillis=200 \
+        -XX:+UnlockExperimentalVMOptions \
+        -XX:+DisableExplicitGC \
+        -XX:+AlwaysPreTouch \
+        -XX:G1NewSizePercent=40 \
+        -XX:G1MaxNewSizePercent=50 \
+        -XX:G1HeapRegionSize=16M \
+        -XX:G1ReservePercent=15 \
+        -XX:G1HeapWastePercent=5 \
+        -XX:G1MixedGCCountTarget=4 \
+        -XX:InitiatingHeapOccupancyPercent=20 \
+        -XX:G1MixedGCLiveThresholdPercent=90 \
+        -XX:G1RSetUpdatingPauseTimePercent=5 \
+        -XX:SurvivorRatio=32 \
+        -XX:+PerfDisableSharedMem \
+        -XX:MaxTenuringThreshold=1 \
+        -Dusing.aikars.flags=https://mcflags.emc.gs \
+        -Daikars.new.flags=true \
+        -jar /minecraft/paperclip.jar
 else
-    exec java -Xms400M -Xmx"${MaxMemory}M" -jar /minecraft/paperclip.jar
+    # Standard heap (< 12 GB)
+    exec java \
+        -Xms"${MaxMemory}M" \
+        -Xmx"${MaxMemory}M" \
+        -XX:+UseG1GC \
+        -XX:+ParallelRefProcEnabled \
+        -XX:MaxGCPauseMillis=200 \
+        -XX:+UnlockExperimentalVMOptions \
+        -XX:+DisableExplicitGC \
+        -XX:+AlwaysPreTouch \
+        -XX:G1NewSizePercent=30 \
+        -XX:G1MaxNewSizePercent=40 \
+        -XX:G1HeapRegionSize=8M \
+        -XX:G1ReservePercent=20 \
+        -XX:G1HeapWastePercent=5 \
+        -XX:G1MixedGCCountTarget=4 \
+        -XX:InitiatingHeapOccupancyPercent=15 \
+        -XX:G1MixedGCLiveThresholdPercent=90 \
+        -XX:G1RSetUpdatingPauseTimePercent=5 \
+        -XX:SurvivorRatio=32 \
+        -XX:+PerfDisableSharedMem \
+        -XX:MaxTenuringThreshold=1 \
+        -Dusing.aikars.flags=https://mcflags.emc.gs \
+        -Daikars.new.flags=true \
+        -jar /minecraft/paperclip.jar
 fi
