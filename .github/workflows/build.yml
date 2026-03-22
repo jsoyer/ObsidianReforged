@@ -55,11 +55,13 @@ jobs:
         id: registries
         shell: bash
         run: |
-          IMAGES="ghcr.io/${{ github.repository }}"
-          if [[ "${DOCKERHUB_ENABLED}" == "true" ]]; then
-            IMAGES="${{ env.IMAGE }}"$'\n'"${IMAGES}"
-          fi
-          echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
+          # Multiline step outputs require the heredoc format in GITHUB_OUTPUT
+          {
+            echo 'images<<__EOF__'
+            [[ "${DOCKERHUB_ENABLED}" == "true" ]] && echo "${{ env.IMAGE }}"
+            echo "ghcr.io/${{ github.repository }}"
+            echo '__EOF__'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Extract image metadata
         id: meta
