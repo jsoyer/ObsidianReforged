@@ -8,6 +8,7 @@ on:
 
 env:
   IMAGE: jsoyer/obsidian-reforged
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   build:
@@ -32,7 +33,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        # Skipped if DOCKERHUB_TOKEN secret is not configured
         if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
@@ -46,13 +46,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine target registries
+        id: registries
+        shell: bash
+        run: |
+          IMAGES="ghcr.io/${{ github.repository }}"
+          if [[ -n "${DOCKERHUB_TOKEN}" ]]; then
+            IMAGES="${{ env.IMAGE }}"$'\n'"${IMAGES}"
+          fi
+          echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ secrets.DOCKERHUB_TOKEN != '' && env.IMAGE || '' }}
-            ghcr.io/${{ github.repository }}
+          images: ${{ steps.registries.outputs.images }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -82,12 +92,10 @@ jobs:
         #               ghcr.io/jsoyer/obsidianreforged:latest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"
+        run: cosign sign --yes "ghcr.io/${{ github.repository }}@${DIGEST}"
 
       - name: Sign image on Docker Hub (keyless via Sigstore OIDC)
         if: ${{ secrets.DOCKERHUB_TOKEN != '' }}
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          cosign sign --yes "${{ env.IMAGE }}@${DIGEST}"
+        run: cosign sign --yes "${{ env.IMAGE }}@${DIGEST}"
