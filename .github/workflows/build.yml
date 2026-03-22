@@ -1,4 +1,4 @@
-name: Build & Push
+name: 🐳 Build & Push
 
 on:
   push:
@@ -75,7 +75,6 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Sign image (keyless via Sigstore OIDC)
-        # Signs every registry the image was pushed to using the GitHub Actions OIDC token.
         # Verification: cosign verify --certificate-identity-regexp "github.com/jsoyer" \
         #               --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
         #               jsoyer/obsidian-reforged:latest

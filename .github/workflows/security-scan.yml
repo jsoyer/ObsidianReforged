@@ -1,4 +1,4 @@
-name: Security Scan
+name: 🛡️ Security Scan
 
 on:
   schedule:
@@ -21,6 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build image for scanning
         uses: docker/build-push-action@v6
         with:
@@ -31,7 +34,7 @@ jobs:
           tags: obsidian-reforged:scan
 
       - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: obsidian-reforged:scan
           format: sarif
@@ -57,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Trivy on repository
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: fs
           scan-ref: .

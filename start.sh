@@ -32,6 +32,7 @@ fi
 # ─── Port validation ─────────────────────────────────────────────────────────
 Port="${Port:-25565}"
 BedrockPort="${BedrockPort:-19132}"
+Version="${Version:-1.21.11}"
 
 if ! [[ "$Port" =~ ^[0-9]+$ ]]; then
     echo "ERROR: Port must be a positive integer, got: $Port"
@@ -159,7 +160,9 @@ fi
 if [ -d /minecraft/backups ]; then
     (
         cd /minecraft/backups
-        ls -1tr | head -n -"$BackupCount" | xargs -d '\n' rm -f -- || true
+        find . -maxdepth 1 -name '*.tar.gz' -printf '%T+ %f\n' \
+            | sort | head -n -"$BackupCount" | awk '{print $2}' \
+            | xargs -d '\n' rm -f -- || true
     )
 fi
 
