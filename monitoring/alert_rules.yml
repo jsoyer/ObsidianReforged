@@ -1,8 +1,70 @@
+# ObsidianReforged — Prometheus alert rules
+#
+# SLO: Server availability 99.5% over a 30-day rolling window
+#   → Error budget: 3h 36m downtime/month
+#   → Burn rate 1x = consuming exactly the budget over 30 days
+#   → Burn rate 14.4x = consuming 2% of budget in 1 hour (fast burn)
+#   → Burn rate 6x = consuming 5% of budget in 6 hours (slow burn)
+
 groups:
-  - name: minecraft
+
+  # ── SLO: Availability ───────────────────────────────────────────────────────
+  - name: slo_availability
     interval: 30s
     rules:
 
+      # Availability ratio recording rule — fraction of scrapes where server was up
+      - record: job:minecraft_up:ratio_rate5m
+        expr: avg_over_time(up{job="minecraft"}[5m])
+
+      - record: job:minecraft_up:ratio_rate1h
+        expr: avg_over_time(up{job="minecraft"}[1h])
+
+      - record: job:minecraft_up:ratio_rate6h
+        expr: avg_over_time(up{job="minecraft"}[6h])
+
+      # Fast burn: consuming 2% of monthly error budget in 1 hour
+      # Availability must stay above 99.5% → allowed error rate = 0.005
+      # Fast burn threshold = 14.4 × 0.005 = 0.072 (i.e. 7.2% downtime rate)
+      - alert: AvailabilityFastBurn
+        expr: |
+          (1 - job:minecraft_up:ratio_rate1h) > 0.072
+          and
+          (1 - job:minecraft_up:ratio_rate5m) > 0.072
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Fast error budget burn — server mostly unreachable"
+          description: >
+            Availability over the last hour is {{ printf "%.1f" (mul (index . "job:minecraft_up:ratio_rate1h") 100) }}%.
+            At this rate, the monthly error budget will be exhausted in under 12 hours.
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#availabilityfastburn"
+
+      # Slow burn: 5% of budget consumed over 6 hours
+      # Slow burn threshold = 6 × 0.005 = 0.030 (3% downtime rate)
+      - alert: AvailabilitySlowBurn
+        expr: |
+          (1 - job:minecraft_up:ratio_rate6h) > 0.030
+          and
+          (1 - job:minecraft_up:ratio_rate1h) > 0.030
+        for: 15m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "Slow error budget burn — intermittent server unavailability"
+          description: >
+            Availability over the last 6 hours is below 97%. Budget will exhaust in ~5 days.
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#availabilityslowburn"
+
+  # ── Operational: server health ───────────────────────────────────────────────
+  - name: minecraft_operational
+    interval: 30s
+    rules:
+
+      # Hard down — exporter can't reach server at all
       - alert: MinecraftServerDown
         expr: up{job="minecraft"} == 0
         for: 2m
@@ -10,26 +72,79 @@ groups:
           severity: critical
         annotations:
           summary: "Minecraft server unreachable"
-          description: "The minecraft-exporter has been unable to reach the server for more than 2 minutes."
+          description: "RCON unreachable for > 2 min. Server may be crashed or starting up."
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#minecraftserverdown"
 
-      - alert: MinecraftBackupStale
-        # Alert if no backup file has been modified in the last 25 hours.
-        # Requires the host backup directory to be mounted into a node-exporter or
-        # custom file-age metric. Placeholder — adapt to your monitoring setup.
+      # Server near player capacity (> 90% slots filled for 5 min)
+      - alert: MinecraftNearCapacity
         expr: |
-          (time() - minecraft_last_backup_timestamp_seconds) > 90000
+          minecraft_players_online_count / minecraft_players_max_count > 0.90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Server near full capacity"
+          description: >
+            {{ $value | humanizePercentage }} of player slots occupied for > 5 minutes.
+            Consider raising max-players or provisioning a second instance.
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#minecraftnearcapacity"
+
+      # Backup freshness — no backup in 25 hours
+      - alert: MinecraftBackupStale
+        expr: (time() - minecraft_last_backup_timestamp_seconds) > 90000
         for: 0m
         labels:
           severity: warning
         annotations:
-          summary: "Minecraft backup is stale"
-          description: "Last backup is older than 25 hours."
+          summary: "Backup is stale"
+          description: "Last backup is older than 25 hours. Check disk space and backup logs."
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#minecraftbackupstale"
 
-      - alert: MinecraftHighPlayerCount
-        expr: minecraft_players_online_count > 18
+  # ── Container saturation (cAdvisor) ─────────────────────────────────────────
+  - name: container_saturation
+    interval: 30s
+    rules:
+
+      # Memory usage > 90% of container limit for 5 min
+      - alert: ContainerMemoryPressure
+        expr: |
+          (
+            container_memory_working_set_bytes{
+              container_label_com_docker_compose_service="minecraft"
+            }
+            /
+            container_spec_memory_limit_bytes{
+              container_label_com_docker_compose_service="minecraft"
+            }
+          ) > 0.90
         for: 5m
         labels:
-          severity: info
+          severity: warning
         annotations:
-          summary: "High player count"
-          description: "More than 18 players online — server may be under load."
+          summary: "Container memory pressure"
+          description: >
+            Minecraft container using {{ $value | humanizePercentage }} of its memory limit.
+            JVM GC pressure or OOM kill imminent. Consider raising MaxMemory or memory limit.
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#containermemorypressure"
+
+      # CPU throttling > 25% over 10 minutes (JVM stutters → TPS drops)
+      - alert: ContainerCpuThrottling
+        expr: |
+          (
+            rate(container_cpu_cfs_throttled_seconds_total{
+              container_label_com_docker_compose_service="minecraft"
+            }[5m])
+            /
+            rate(container_cpu_cfs_periods_total{
+              container_label_com_docker_compose_service="minecraft"
+            }[5m])
+          ) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container CPU throttled"
+          description: >
+            Minecraft container is CPU-throttled {{ $value | humanizePercentage }} of the time.
+            Server TPS may be degraded. Consider raising the CPU limit.
+          runbook: "https://github.com/jsoyer/ObsidianReforged/blob/main/docs/runbooks.md#containercputhrottling"

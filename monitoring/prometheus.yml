@@ -6,6 +6,7 @@ rule_files:
   - alert_rules.yml
 
 scrape_configs:
+  # Minecraft server — via RCON (player count, up/down)
   - job_name: minecraft
     static_configs:
       - targets: ['minecraft-exporter:9940']
@@ -13,3 +14,17 @@ scrape_configs:
       - source_labels: [__address__]
         target_label: instance
         replacement: 'obsidian-reforged'
+
+  # Container metrics — CPU, memory, network via cAdvisor
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metric_relabel_configs:
+      # Keep only the minecraft container metrics
+      - source_labels: [container_label_com_docker_compose_service]
+        regex: 'minecraft'
+        action: keep
+      # Drop high-cardinality metrics we don't use
+      - source_labels: [__name__]
+        regex: 'container_blkio_device_usage_total'
+        action: drop

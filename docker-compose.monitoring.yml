@@ -1,9 +1,10 @@
 # ObsidianReforged — Monitoring overlay
 # Usage: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 #
-# Adds Prometheus + Grafana + minecraft-prometheus-exporter alongside the server.
-# Grafana UI: http://localhost:3000  (admin / admin — change on first login)
-# Prometheus UI: http://localhost:9090
+# Adds Prometheus + Grafana + cAdvisor + minecraft-prometheus-exporter.
+# Required env vars: RCON_PASSWORD, GRAFANA_PASSWORD (set in .env file)
+# Grafana UI: http://localhost:3000  (login with GRAFANA_PASSWORD)
+# Prometheus UI: http://localhost:9090 (loopback only)
 
 services:
   minecraft-exporter:
@@ -18,6 +19,20 @@ services:
       - default
     depends_on:
       - minecraft
+
+  # cAdvisor — container CPU, memory, network metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring
 
   prometheus:
     image: prom/prometheus:latest
