@@ -45,3 +45,6 @@ jobs:
                 max: 120
               truthy:
                 allowed-values: ['true', 'false', 'True', 'False']
+              document-start: disable
+              comments:
+                min-spaces-from-content: 1

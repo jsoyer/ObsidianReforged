@@ -21,57 +21,58 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-      - name: minecraft
-        image: jsoyer/obsidian-reforged:latest
-        imagePullPolicy: Always
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false   # server writes to /minecraft volume
-          capabilities:
-            drop: ["ALL"]
-        volumeMounts:
-        - name: minecraft-data
-          mountPath: /minecraft
-        envFrom:
-        - configMapRef:
-            name: minecraft-config
-        env:
-        - name: MaxMemory
-          value: '1024'
-        resources:
-          limits:
-            cpu: 1500m
-            memory: 2048M
-            ephemeral-storage: 512Mi
-          requests:
-            cpu: 750m
-            memory: 750M
-            ephemeral-storage: 2Mi
-        ports:
-        - containerPort: 25565
-          name: java
-          protocol: TCP
-        - containerPort: 19132
-          name: bedrock-v4
-          protocol: UDP
-        - containerPort: 19133
-          name: bedrock-v6
-          protocol: UDP
-        livenessProbe:
-          tcpSocket:
-            port: java
-          initialDelaySeconds: 120
-          periodSeconds: 30
-          timeoutSeconds: 10
-          failureThreshold: 3
-        readinessProbe:
-          tcpSocket:
-            port: java
-          initialDelaySeconds: 60
-          periodSeconds: 15
-          timeoutSeconds: 5
-          failureThreshold: 6   # allow up to 90s of startup after initialDelay
+        - name: minecraft
+          image: jsoyer/obsidian-reforged:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # server writes to /minecraft volume
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: minecraft-data
+              mountPath: /minecraft
+          envFrom:
+            - configMapRef:
+                name: minecraft-config
+          env:
+            - name: MaxMemory
+              value: '1024'
+          resources:
+            limits:
+              cpu: 1500m
+              memory: 2048M
+              ephemeral-storage: 512Mi
+            requests:
+              cpu: 750m
+              memory: 750M
+              ephemeral-storage: 2Mi
+          ports:
+            - containerPort: 25565
+              name: java
+              protocol: TCP
+            - containerPort: 19132
+              name: bedrock-v4
+              protocol: UDP
+            - containerPort: 19133
+              name: bedrock-v6
+              protocol: UDP
+          livenessProbe:
+            tcpSocket:
+              port: java
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: java
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6  # allow up to 90s of startup after initialDelay
       volumes:
-      - name: minecraft-data
-        persistentVolumeClaim:
-          claimName: minecraft-pvc
+        - name: minecraft-data
+          persistentVolumeClaim:
+            claimName: minecraft-pvc
