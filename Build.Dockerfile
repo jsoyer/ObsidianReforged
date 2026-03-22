@@ -15,7 +15,7 @@ LABEL org.opencontainers.image.title="ObsidianReforged" \
 # - libcurl4: runtime curl library (not the -dev headers)
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     openjdk-21-jre-headless tzdata curl unzip gawk openssl findutils pigz \
-    libcurl4 ca-certificates nano jq gosu iproute2 \
+    libcurl4t64 ca-certificates nano jq gosu iproute2 \
     && apt-get clean && rm -rf /var/cache/apt/* /var/lib/apt/lists/* \
     && mkdir /scripts
 
