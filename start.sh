@@ -14,7 +14,7 @@ if [ "$(id -u)" = '0' ]; then
 
     chown -R minecraft:minecraft /minecraft
 
-    exec su minecraft -c "$0 $@"
+    exec gosu minecraft "$0" "$@"
 fi
 
 echo "Paper Minecraft Java Server Docker + Geyser/Floodgate script by James A. Chambers"
@@ -27,16 +27,13 @@ if [ ! -d '/minecraft' ]; then
     exit 1
 fi
 
-# Randomizer for user agent
-RandNum=$(echo $((1 + $RANDOM % 5000)))
-
 if [ -z "$Port" ]; then
     Port="25565"
 fi
 echo "Port used: $Port"
 
 if [ -z "$BedrockPort" ]; then
-    Port="19132"
+    BedrockPort="19132"
 fi
 echo "Bedrock port used: $BedrockPort"
 
@@ -73,53 +70,56 @@ while [ -z "$DefaultRoute" ]; do
         DefaultRoute=$(route -n | awk '$4 == "UG" {print $2}')
     fi
     NetworkChecks=$((NetworkChecks + 1))
-    if [ $NetworkChecks -gt 20 ]; then
+    if [ "$NetworkChecks" -gt 20 ]; then
         echo "Waiting for network interface to come up timed out - starting server without network connection ..."
         break
     fi
 done
 
-# Take ownership of server files and set correct permissions
+# Ownership is already set to minecraft by the root startup block above.
+# This step is a no-op when NoPermCheck is unset but kept for logging clarity.
 if [ -z "$NoPermCheck" ]; then
-    echo "Taking ownership of all server files/folders in /minecraft..."
-    sudo -n chown -R $(whoami) /minecraft >/dev/null 2>&1
-    echo "Complete"
+    echo "Permissions set by startup block."
 else
     echo "Skipping permissions check due to NoPermCheck flag"
 fi
 
 # Back up server
 if [ -d "world" ]; then
+    # Build extra --exclude args from NoBackup (comma-separated), sanitised to safe path chars only
+    extraExcludes=()
+    if [ -n "$NoBackup" ]; then
+        IFS=',' read -ra ADDR <<< "$NoBackup"
+        for i in "${ADDR[@]}"; do
+            if [[ "$i" =~ ^[a-zA-Z0-9_./-]+$ ]]; then
+                extraExcludes+=(--exclude="./$i")
+            else
+                echo "WARNING: Skipping unsafe NoBackup entry: $i"
+            fi
+        done
+    fi
+    BackupFile="backups/$(date +%Y.%m.%d.%H.%M.%S).tar.gz"
     if [ -n "$(which pigz)" ]; then
-        echo "Backing up server (all cores) to cd minecraft/backups folder"
-        tarArgs=(-I pigz --exclude='./backups' --exclude='./cache' --exclude='./logs' --exclude='./paperclip.jar')
-        IFS=','
-        read -ra ADDR <<< "$NoBackup"
-        for i in "${ADDR[@]}"; do
-            tarArgs+=(--exclude="./$i")
-        done
-        tarArgs+=(-pvcf backups/$(date +%Y.%m.%d.%H.%M.%S).tar.gz ./*)
-        tar "${tarArgs[@]}"
+        echo "Backing up server (all cores) to minecraft/backups folder"
+        tar -I pigz --exclude='./backups' --exclude='./cache' --exclude='./logs' --exclude='./paperclip.jar' \
+            "${extraExcludes[@]}" -pvcf "$BackupFile" ./*
     else
-        echo "Backing up server (single core, pigz not found) to cd minecraft/backups folder"
-        tarArgs=(--exclude='./backups' --exclude='./cache' --exclude='./logs' --exclude='./paperclip.jar')
-        IFS=','
-        read -ra ADDR <<< "$NoBackup"
-        for i in "${ADDR[@]}"; do
-            tarArgs+=(--exclude="./$i")
-        done
-        tarArgs+=(-pvcf backups/$(date +%Y.%m.%d.%H.%M.%S).tar.gz ./*)
-        tar "${tarArgs[@]}"
+        echo "Backing up server (single core, pigz not found) to minecraft/backups folder"
+        tar --exclude='./backups' --exclude='./cache' --exclude='./logs' --exclude='./paperclip.jar' \
+            "${extraExcludes[@]}" -pvcf "$BackupFile" ./*
     fi
 fi
 
-# Rotate backups
+# Rotate backups — guard against empty/invalid BackupCount
+BackupCount="${BackupCount:-10}"
+if ! [[ "$BackupCount" =~ ^[0-9]+$ ]] || [ "$BackupCount" -lt 1 ]; then
+    echo "WARNING: BackupCount is invalid ('$BackupCount'), defaulting to 10"
+    BackupCount=10
+fi
 if [ -d /minecraft/backups ]; then
-    Rotate=$(
-        pushd /minecraft/backups
-        ls -1tr | head -n -$BackupCount | xargs -d '\n' rm -f --
-        popd
-    )
+    pushd /minecraft/backups
+    ls -1tr | head -n -"$BackupCount" | xargs -d '\n' rm -f --
+    popd
 fi
 
 # Copy config files if this is a brand new server
@@ -167,6 +167,13 @@ else
             else
                 curl --no-progress-meter -H "Accept-Encoding: identity" -H "Accept-Language: en" -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4.212 Safari/537.36" -o /minecraft/paperclip.jar "https://fill-data.papermc.io/v1/objects/$SHA256/$FileName"
             fi
+            echo "Verifying Paper download..."
+            if ! echo "$SHA256  /minecraft/paperclip.jar" | sha256sum -c --quiet; then
+                echo "ERROR: SHA256 verification failed for Paper! The download may be corrupt or tampered with. Aborting."
+                rm -f /minecraft/paperclip.jar
+                exit 1
+            fi
+            echo "Paper SHA256 verified."
         else
             echo "Unable to retrieve download info for Paper build $Build"
         fi
@@ -176,25 +183,49 @@ else
 
     # Update Floodgate
     echo "Updating Floodgate..."
+    FloodgateBuildInfo=$(curl -s -L "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest")
+    FloodgateSHA256=$(echo "$FloodgateBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null)
     if [ -z "$QuietCurl" ]; then
         curl -H "Accept-Encoding: identity" -H "Accept-Language: en" -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4.212 Safari/537.36" -o /minecraft/plugins/Floodgate-Spigot.jar "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
     else
         curl --no-progress-meter -H "Accept-Encoding: identity" -H "Accept-Language: en" -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4.212 Safari/537.36" -o /minecraft/plugins/Floodgate-Spigot.jar "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
     fi
+    if [[ -n "$FloodgateSHA256" && "$FloodgateSHA256" != "null" ]]; then
+        if ! echo "$FloodgateSHA256  /minecraft/plugins/Floodgate-Spigot.jar" | sha256sum -c --quiet; then
+            echo "ERROR: SHA256 verification failed for Floodgate! Aborting."
+            rm -f /minecraft/plugins/Floodgate-Spigot.jar
+            exit 1
+        fi
+        echo "Floodgate SHA256 verified."
+    else
+        echo "WARNING: Could not fetch Floodgate SHA256 checksum, skipping verification."
+    fi
 
     # Update Geyser
     echo "Updating Geyser..."
+    GeyserBuildInfo=$(curl -s -L "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest")
+    GeyserSHA256=$(echo "$GeyserBuildInfo" | jq -r '.downloads.spigot.sha256' 2>/dev/null)
     if [ -z "$QuietCurl" ]; then
         curl -H "Accept-Encoding: identity" -H "Accept-Language: en" -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4.212 Safari/537.36" -o /minecraft/plugins/Geyser-Spigot.jar "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot"
     else
         curl --no-progress-meter -H "Accept-Encoding: identity" -H "Accept-Language: en" -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4.212 Safari/537.36" -o /minecraft/plugins/Geyser-Spigot.jar "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot"
+    fi
+    if [[ -n "$GeyserSHA256" && "$GeyserSHA256" != "null" ]]; then
+        if ! echo "$GeyserSHA256  /minecraft/plugins/Geyser-Spigot.jar" | sha256sum -c --quiet; then
+            echo "ERROR: SHA256 verification failed for Geyser! Aborting."
+            rm -f /minecraft/plugins/Geyser-Spigot.jar
+            exit 1
+        fi
+        echo "Geyser SHA256 verified."
+    else
+        echo "WARNING: Could not fetch Geyser SHA256 checksum, skipping verification."
     fi
 
     if [ -z "$NoViaVersion" ]; then
         if [ -n "$ViaVersionSnapshot" ]; then
             # Update ViaVersion from Jenkins CI (snapshot/dev versions)
             echo "Updating ViaVersion from Jenkins CI (snapshot)..."
-            ViaVersionVersion=$(curl -s -k -L "https://ci.viaversion.com/job/ViaVersion/lastBuild/artifact/build/libs/" | grep -oE 'href="ViaVersion[^"]+' | head -1 | sed 's/href="//')
+            ViaVersionVersion=$(curl -s -L "https://ci.viaversion.com/job/ViaVersion/lastBuild/artifact/build/libs/" | grep -oE 'href="ViaVersion[^"]+' | head -1 | sed 's/href="//')
             if [ -n "$ViaVersionVersion" ]; then
                 echo "Found ViaVersion: $ViaVersionVersion"
                 if [ -z "$QuietCurl" ]; then
@@ -226,7 +257,17 @@ else
 fi
 
 # Accept EULA
-AcceptEULA=$(echo eula=true >eula.txt)
+echo eula=true > eula.txt
+
+# Validate ports are numeric-only before injecting into config files via sed
+if ! [[ "$Port" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: Port must be a positive integer, got: $Port"
+    exit 1
+fi
+if ! [[ "$BedrockPort" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: BedrockPort must be a positive integer, got: $BedrockPort"
+    exit 1
+fi
 
 # Change ports in server.properties
 sed -i "/server-port=/c\server-port=$Port" /minecraft/server.properties
@@ -240,9 +281,9 @@ fi
 echo "Starting Minecraft server..."
 
 if [[ -z "$MaxMemory" ]] || [[ "$MaxMemory" -le 0 ]]; then
-    exec java -XX:+UnlockDiagnosticVMOptions -XX:-UseAESCTRIntrinsics -DPaper.IgnoreJavaVersion=true -Xms400M -jar /minecraft/paperclip.jar
+    exec java -Xms400M -jar /minecraft/paperclip.jar
 else
-    exec java -XX:+UnlockDiagnosticVMOptions -XX:-UseAESCTRIntrinsics -DPaper.IgnoreJavaVersion=true -Xms400M -Xmx${MaxMemory}M -jar /minecraft/paperclip.jar
+    exec java -Xms400M -Xmx"${MaxMemory}M" -jar /minecraft/paperclip.jar
 fi
 
 # Exit container

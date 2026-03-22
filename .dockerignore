@@ -1,0 +1,10 @@
+.git
+.github
+kubernetes/
+docker-compose.yml
+build.sh
+Build.Dockerfile
+README.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE

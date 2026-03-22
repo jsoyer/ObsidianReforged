@@ -22,13 +22,6 @@ spec:
       port: 19133
       protocol: UDP
       targetPort: bedrock-v6
-    - name: bedrock-v4-tcp
-      port: 19132
-      protocol: TCP
-      targetPort: bedrock-v4
-    - name: bedrock-v6-tcp
-      port: 19133
-      protocol: TCP
-      targetPort: bedrock-v6
+    # Bedrock/Geyser uses RakNet (UDP only) — no TCP needed on these ports
   selector:
     app: minecraft

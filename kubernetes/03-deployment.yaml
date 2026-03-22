@@ -5,6 +5,8 @@ metadata:
   name: minecraft
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: minecraft
@@ -13,10 +15,18 @@ spec:
       labels:
         app: minecraft
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
       - name: minecraft
-        image: 05jchambers/legendary-minecraft-geyser-floodgate:latest
-        imagePullPolicy: IfNotPresent
+        image: jsoyer/obsidian-reforged:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
         volumeMounts:
         - name: minecraft-data
           mountPath: /minecraft
@@ -28,8 +38,8 @@ spec:
         resources:
           limits:
             cpu: 1500m
-            memory: 1024M
-            ephemeral-storage: 50Mi
+            memory: 2048M
+            ephemeral-storage: 512Mi
           requests:
             cpu: 750m
             memory: 750M

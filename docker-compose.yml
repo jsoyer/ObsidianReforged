@@ -3,10 +3,9 @@
 # GitHub Repository: https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate
 
 # To run multiple servers change the volume name under both "volumes" sections and select different ports
-version: "3.5"
 services:
   minecraftbe:
-    image: 05jchambers/legendary-minecraft-geyser-floodgate:latest
+    image: jsoyer/obsidian-reforged:latest
     restart: "unless-stopped"
     ports:
       - 25565:25565
@@ -17,6 +16,8 @@ services:
     stdin_open: true # docker run -i
     tty: true # docker run -t
     entrypoint: [ "/bin/bash", "/scripts/start.sh" ]
+    mem_limit: 2g
+    cpus: 1.5
     # Environment variables
     environment:
       Port: "25565"

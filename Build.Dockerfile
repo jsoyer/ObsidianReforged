@@ -2,11 +2,14 @@
 # Author: James A. Chambers - https://jamesachambers.com/minecraft-java-bedrock-server-together-geyser-floodgate/
 # GitHub Repository: https://github.com/TheRemote/Legendary-Java-Minecraft-Geyser-Floodgate
 
-# Use Ubuntu rolling version
-FROM ubuntu:rolling
+# Pin to a specific Ubuntu LTS release for reproducible builds
+FROM ubuntu:24.04
 
-# Fetch dependencies
-RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install openjdk-21-jre-headless tzdata sudo curl unzip net-tools gawk openssl findutils pigz libc6 libcrypt1 apt-utils libcurl4-openssl-dev ca-certificates binfmt-support nano jq -yqq && rm -rf /var/cache/apt/*
+# Fetch dependencies — no sudo (privilege drop handled by gosu), no binfmt-support (build-host only)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    openjdk-21-jre-headless tzdata curl unzip net-tools gawk openssl findutils pigz \
+    libc6 libcrypt1 libcurl4-openssl-dev ca-certificates nano jq gosu \
+    && apt-get clean && rm -rf /var/cache/apt/* /var/lib/apt/lists/*
 
 # Set port environment variable
 ENV Port=25565

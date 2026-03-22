@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Auto-assign issue'
-        uses: pozil/auto-assign-issue@v1
+        uses: pozil/auto-assign-issue@9b0ef9fc8a20c9b3d9fb09fb348b08a99d2e32af  # v1.4.0 — pinned to commit SHA
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          assignees: TheRemote
+          assignees: jsoyer

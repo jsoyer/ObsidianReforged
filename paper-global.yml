@@ -54,7 +54,7 @@ item-validation:
   resolve-selectors-in-books: false
 logging:
   deobfuscate-stacktraces: true
-  log-player-ip-addresses: true
+  log-player-ip-addresses: false
   use-rgb-for-named-text-colors: true
 messages:
   kick:
@@ -109,7 +109,7 @@ spam-limiter:
   tab-spam-increment: 1
   tab-spam-limit: 500
 timings:
-  enabled: true
+  enabled: false
   hidden-config-entries:
   - database
   - settings.bungeecord-addresses
