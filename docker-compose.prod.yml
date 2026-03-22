@@ -1,0 +1,29 @@
+# ObsidianReforged — Production overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Hardened settings for production deployments:
+#   - Pinned image tag (never :latest in prod)
+#   - Restart policy: always
+#   - Tighter resource limits
+#   - Quiet curl output
+#   - RCON password via Docker Secret (optional)
+
+services:
+  minecraft:
+    # Pin to an explicit version tag — never use :latest in production.
+    # Update this value when you want to roll out a new release.
+    image: jsoyer/obsidian-reforged:1.0.0
+    restart: "always"
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: '2.0'
+        reservations:
+          memory: 1g
+          cpus: '1.0'
+    environment:
+      MaxMemory: "2560"     # 2.5 GB — keep ~20% below memory limit
+      BackupCount: "14"     # Two weeks of daily backups
+      QuietCurl: "Y"        # Suppress download noise in production logs
+      NoPermCheck: "Y"      # Permissions already set at volume provision time

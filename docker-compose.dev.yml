@@ -1,0 +1,28 @@
+# ObsidianReforged — Development overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Developer-friendly settings:
+#   - Binds start.sh from the repo so edits take effect without rebuilding
+#   - Verbose curl output for debugging downloads
+#   - Backup disabled to speed up restarts
+#   - Uses a separate volume to keep dev world data isolated
+
+services:
+  minecraft:
+    image: jsoyer/obsidian-reforged:latest
+    restart: "no"
+    volumes:
+      # Separate volume keeps dev world data isolated from production
+      - minecraft-dev:/minecraft
+      # Bind-mount start.sh so you can edit and restart without rebuilding
+      - ./start.sh:/scripts/start.sh:ro
+    environment:
+      NoBackup: ""           # Disable backups in dev (faster restarts)
+      BackupCount: "1"
+      MaxMemory: "1024"
+      NoViaVersion: "Y"      # Skip ViaVersion to speed up startup
+      # QuietCurl not set — verbose output is useful when debugging downloads
+
+volumes:
+  minecraft-dev:
+    driver: local
